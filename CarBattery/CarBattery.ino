@@ -28,7 +28,7 @@ RTC_DATA_ATTR float loadvoltage = 0;
 RTC_DATA_ATTR float power_mW = 0;
 
 //CircularBuffer<float,288> measurmentStorage;
-CircularBuffer<float,5> measurmentStorage;
+CircularBuffer<float,6> measurmentStorage;
 
 int playMelody(int melody[], int noteDuration){
   for (int i = 0; i < sizeof(melody) / sizeof(melody[0]); i++)
@@ -196,7 +196,7 @@ void loop(){
     displayInfo();
   }
   else {
-    playSuccessMelody();
+//    playSuccessMelody();
     getIna219Data();
     writeMeasurment(loadvoltage);
     for (byte i = 0; i < measurmentStorage.size() - 1; i++) {
