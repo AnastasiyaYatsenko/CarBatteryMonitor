@@ -178,7 +178,7 @@ void setup(){
 void loop(){
   gpio_wakeup_enable(GPIO_NUM_10, GPIO_INTR_HIGH_LEVEL);    // Enable wakeup on high-level on GPIO 4
   esp_sleep_enable_gpio_wakeup();
-  esp_sleep_enable_timer_wakeup(30000000);
+  esp_sleep_enable_timer_wakeup(30000000); //30sec, 5min = 300000000
   
   
 //  for (int percentage = 0; percentage <= 100; percentage++)
@@ -199,10 +199,10 @@ void loop(){
 //    playSuccessMelody();
     getIna219Data();
     writeMeasurment(loadvoltage);
-    for (byte i = 0; i < measurmentStorage.size() - 1; i++) {
-      Serial.print(measurmentStorage[i]);
-      Serial.print(" ");
-    }
+//    for (byte i = 0; i < measurmentStorage.size() - 1; i++) {
+//      Serial.print(measurmentStorage[i]);
+//      Serial.print(" ");
+//    }
     delay(1000);
   }
 //  playErrorMelody();
