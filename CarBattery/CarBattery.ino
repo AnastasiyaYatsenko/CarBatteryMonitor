@@ -6,9 +6,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-
-
-#include <CircularBuffer.h>
+//#include <CircularBuffer.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <time.h>
@@ -35,8 +33,6 @@ RTC_DATA_ATTR float loadvoltage = 0;
 RTC_DATA_ATTR float power_mW = 0;
 RTC_DATA_ATTR int measurments_stored = 0;
 
-//CircularBuffer<float,288> measurmentStorage;
-//CircularBuffer<float,6> measurmentStorage;
 Preferences preferences;
 
 const char* ssid       = "OpenWRT";
@@ -132,7 +128,7 @@ int getIna219Data(){
   power_mW = VoltageSensor.getPower_mW();
   loadvoltage = busvoltage + (shuntvoltage / 1000);
 
-  if (loadvoltage<=9){
+  if (loadvoltage<=12){
     playErrorMelody();
     displayInfo();
   }
@@ -217,6 +213,7 @@ void write_data(){
     preferences.getBytes("keys", buffer, schLen);
     unsigned long *key_array = (unsigned long *) buffer;
     int key_len = sizeof(buffer) / sizeof(unsigned long);
+    if (measurments_stored != key_len) {measurments_stored = key_len;}
     unsigned long new_key_array[key_len+1];
     for (int i=0; i<key_len; i++){
       new_key_array[i] = key_array[i];
@@ -231,8 +228,8 @@ void write_data(){
   }
 
 
-//  if (measurments_stored>288){
-  if (measurments_stored>5){
+//  if (measurments_stored>124){
+  while (measurments_stored>10){
     unsigned long min_key = 4294967295;
     int min_i = 0;
     size_t schLen = preferences.getBytes("keys", NULL, NULL);
@@ -280,15 +277,67 @@ void printMemory(){
       Serial.print(" ");
     }
   }
+  Serial.println("");
   preferences.end();
 }
 
-//void writeMeasurment(float new_data){
-//  if (measurmentStorage.isFull()){
-//    measurmentStorage.shift();    
-//  }
-//  measurmentStorage.push(new_data);
-//}
+void printChart(){
+  preferences.begin("battery", false);
+  if (preferences.isKey("keys")) {
+    size_t schLen = preferences.getBytes("keys", NULL, NULL);
+    char buffer[schLen];
+    preferences.getBytes("keys", buffer, schLen);
+    unsigned long *key_array = (unsigned long *) buffer;
+    int key_len = sizeof(buffer) / sizeof(unsigned long);
+    
+    display.clearDisplay();
+    int i=0;
+    char key_i[11];
+    do{
+      itoa(key_array[i], key_i, 10);
+
+      int voltage = preferences.getFloat(key_i);
+      int vol_time = key_array[i]-key_array[0];
+      
+      int x = 2;
+//      int y = 2;
+      int width = 124;
+      int height = 28;
+      int volHeight;
+      if (voltage<11){ volHeight = 1; }
+      else { volHeight = map(voltage, 11, 15, 0, height); }
+//      Serial.println("---");
+//      Serial.println(volHeight);
+//      Serial.println(height+1-volHeight);
+//      Serial.println("---");
+      int pointWidth = i+1;
+      display.drawLine(x+pointWidth, 28, x+pointWidth, height+1-volHeight, WHITE);
+        
+      i++;
+    } while (i<key_len && preferences.getFloat(key_i)>0);
+    display.display();
+  }
+  preferences.end();
+}
+
+void checkWork(){
+  for (int percentage = 0; percentage <= 100; percentage++)
+  {
+    drawLoadingBar(percentage);
+    delay(10);
+  }
+
+  playSuccessMelody();
+  delay(2000);  
+  playErrorMelody();
+  digitalWrite(Pin_LedGreen, HIGH);
+  digitalWrite(Pin_LedRed, HIGH);
+  digitalWrite(Pin_LedYellow, HIGH);
+  delay(1000);
+  digitalWrite(Pin_LedGreen, LOW);
+  digitalWrite(Pin_LedRed, LOW);
+  digitalWrite(Pin_LedYellow, LOW);
+}
 
 void setup(){
   Serial.begin(115200);
@@ -311,6 +360,8 @@ void setup(){
   display.setTextSize(1);
   display.setTextColor(WHITE);
 
+  checkWork();
+
   if (!VoltageSensor.begin(&Wire))
   {
     Serial.print("INA219 - Failed to find INA219 chip");
@@ -324,18 +375,36 @@ void setup(){
 void loop(){
   gpio_wakeup_enable(GPIO_NUM_10, GPIO_INTR_HIGH_LEVEL);    // Enable wakeup on high-level on GPIO 4
   esp_sleep_enable_gpio_wakeup();
-  esp_sleep_enable_timer_wakeup(30000000); //30sec, 5min = 300000000
-  
-  
+  esp_sleep_enable_timer_wakeup(3000000); //3sec, 5min = 300000000
+    
   esp_sleep_wakeup_cause_t wakeup_reason;
   wakeup_reason = esp_sleep_get_wakeup_cause();
   if (wakeup_reason == 7){
     displayInfo();
+    delay(1000);
+    printChart();
+    delay(2000);
+    display.clearDisplay();
+    display.display();
   }
   else {
     getIna219Data();
     write_data();
     printMemory();
+    preferences.begin("battery", false);
+    if (preferences.isKey("keys")) {
+      size_t schLen = preferences.getBytes("keys", NULL, NULL);
+      char buffer[schLen];
+      preferences.getBytes("keys", buffer, schLen);
+      unsigned long *key_array = (unsigned long *) buffer;
+      int key_len = sizeof(buffer) / sizeof(unsigned long);
+      for (int i=0; i<key_len; i++){
+        Serial.print(key_array[i]);
+        Serial.print(" ");
+      }
+      Serial.println("");
+    }
+    preferences.end();
 //    for (byte i = 0; i < measurmentStorage.size() - 1; i++) {
 //      Serial.print(measurmentStorage[i]);
 //      Serial.print(" ");
