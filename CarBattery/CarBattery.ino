@@ -10,7 +10,8 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <time.h>
-
+#include <melody_player.h>
+#include <melody_factory.h>
 
 #define Pin_i2c_scl 4
 #define Pin_i2c_sda 5
@@ -25,6 +26,7 @@ Adafruit_INA219 VoltageSensor;
 OneWire oneWire(Pin_ds18b20);
 DallasTemperature ds18(&oneWire); //no sensor
 Adafruit_SSD1306 display;
+MelodyPlayer player(Pin_buzzer, HIGH);
 
 RTC_DATA_ATTR float shuntvoltage = 0;
 RTC_DATA_ATTR float busvoltage = 0;
@@ -32,6 +34,43 @@ RTC_DATA_ATTR float current_mA = 0;
 RTC_DATA_ATTR float loadvoltage = 0;
 RTC_DATA_ATTR float power_mW = 0;
 RTC_DATA_ATTR int measurments_stored = 0;
+
+RTC_DATA_ATTR float min_voltage = 30;
+RTC_DATA_ATTR float max_voltage = 0;
+
+
+//       low voltage       average voltage     high voltage
+// (crit_low low low_avg) (low_avg avg high) (high upper_high)
+
+//voltage thresholds
+float crit_low; // 0%
+float low; // 10%
+
+float low_avg; // 20%
+float avg; // 30%
+
+float high; // 40%
+float upper_high; // 100%
+
+////voltage thresholds 12V
+//crit_low   = 10.50; // 0%
+//low        = 11.31; // 10%
+//
+//low_avg    = 11.58; // 20%
+//avg        = 11.75; // 30%
+//
+//high       = 11.90; // 40%
+//upper_high = 12.60; // 100%
+
+//voltage thresholds 24V
+//crit_low   = 22.00; // 0%
+//low        = 22.6; // 10%
+//
+//low_avg    = 23.10; // 20%
+//avg        = 23.50; // 30%
+//
+//high       = 23.80; // 40%
+//upper_high = 25.20; // 100%
 
 Preferences preferences;
 
@@ -110,6 +149,16 @@ int playErrorMelody(){
   return 0;
 }
 
+int playMelody_(){
+  const int nNotes = 8;
+  String notes[nNotes] = { "C4", "SILENCE", "C4", "SILENCE", "C4", "SILENCE", "C4", "SILENCE"};
+  const int timeUnit = 175;
+  // create a melody
+  Melody melody = MelodyFactory.load("Nice Melody", timeUnit, notes, nNotes);
+  player.playAsync(melody);
+  return 0;
+}
+
 void displayInfo(){
   drawVoltage(String(busvoltage)+" V");
   delay(5000);
@@ -128,10 +177,27 @@ int getIna219Data(){
   power_mW = VoltageSensor.getPower_mW();
   loadvoltage = busvoltage + (shuntvoltage / 1000);
 
-  if (loadvoltage<=12){
-    playErrorMelody();
+  if (loadvoltage<low_avg){
+    playMelody_();
+    digitalWrite(Pin_LedRed, HIGH);
+    delay(1000);
+    digitalWrite(Pin_LedRed, LOW);
     displayInfo();
   }
+  else if ((loadvoltage>=low_avg)&&(loadvoltage<high)){
+    digitalWrite(Pin_LedYellow, HIGH);
+    delay(1000);
+    digitalWrite(Pin_LedYellow, LOW);
+//    displayInfo();
+  }
+  else if (loadvoltage>=high){
+    digitalWrite(Pin_LedGreen, HIGH);
+    delay(1000);
+    digitalWrite(Pin_LedGreen, LOW);
+//    displayInfo();
+  }
+  if (loadvoltage>max_voltage){ max_voltage = loadvoltage; }
+  if (loadvoltage<min_voltage){ min_voltage = loadvoltage; }
 
   Serial.print("Bus Voltage:   ");
   Serial.print(busvoltage);
@@ -305,7 +371,7 @@ void printChart(){
       int height = 28;
       int volHeight;
       if (voltage<11){ volHeight = 1; }
-      else { volHeight = map(voltage, 11, 15, 0, height); }
+      else { volHeight = map(voltage, min_voltage, max_voltage, 0, height); }
 //      Serial.println("---");
 //      Serial.println(volHeight);
 //      Serial.println(height+1-volHeight);
@@ -337,6 +403,8 @@ void checkWork(){
   digitalWrite(Pin_LedGreen, LOW);
   digitalWrite(Pin_LedRed, LOW);
   digitalWrite(Pin_LedYellow, LOW);
+//  playMelody_();
+//  delay(1000);
 }
 
 void setup(){
@@ -369,6 +437,30 @@ void setup(){
     {
       delay(10);
     }
+  }
+
+  getIna219Data();
+  if (loadvoltage>20){
+    //voltage thresholds 24V
+    crit_low   = 22.00; // 0%
+    low        = 22.6; // 10%
+    
+    low_avg    = 23.10; // 20%
+    avg        = 23.50; // 30%
+    
+    high       = 23.80; // 40%
+    upper_high = 25.20; // 100%
+  }
+  else {
+    //voltage thresholds 12V
+    crit_low   = 10.50; // 0%
+    low        = 11.31; // 10%
+    
+    low_avg    = 11.58; // 20%
+    avg        = 11.75; // 30%
+    
+    high       = 11.90; // 40%
+    upper_high = 12.60; // 100%
   }
 }
 
