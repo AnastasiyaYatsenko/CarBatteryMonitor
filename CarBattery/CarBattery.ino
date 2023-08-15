@@ -6,7 +6,6 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-//#include <CircularBuffer.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <time.h>
@@ -160,7 +159,7 @@ int playMelody_(){
 }
 
 void displayInfo(){
-  drawVoltage(String(busvoltage)+" V");
+  drawVoltage(String(loadvoltage)+" V");
   delay(5000);
 }
 
@@ -257,8 +256,15 @@ int drawLoadingBar(int percentage){
 
 int drawVoltage(String voltage){     
   display.clearDisplay();
-  display.setCursor(10, 10);
-  display.println(voltage.c_str());
+  display.setCursor(10, 5);
+  display.println(("Current: "+voltage).c_str());
+
+  display.setCursor(10, 15);
+  display.println(("Min: "+String(min_voltage)+" V").c_str());
+
+  display.setCursor(10, 25);
+  display.println(("Max: "+String(max_voltage)+" V").c_str());
+  
   display.display();
   return 0;
 }
@@ -294,8 +300,8 @@ void write_data(){
   }
 
 
-//  if (measurments_stored>124){
-  while (measurments_stored>10){
+  while (measurments_stored>124){
+//  while (measurments_stored>10){
     unsigned long min_key = 4294967295;
     int min_i = 0;
     size_t schLen = preferences.getBytes("keys", NULL, NULL);
@@ -467,7 +473,8 @@ void setup(){
 void loop(){
   gpio_wakeup_enable(GPIO_NUM_10, GPIO_INTR_HIGH_LEVEL);    // Enable wakeup on high-level on GPIO 4
   esp_sleep_enable_gpio_wakeup();
-  esp_sleep_enable_timer_wakeup(3000000); //3sec, 5min = 300000000
+//  esp_sleep_enable_timer_wakeup(3000000); //3sec
+  esp_sleep_enable_timer_wakeup(300000000); //5min = 300000000
     
   esp_sleep_wakeup_cause_t wakeup_reason;
   wakeup_reason = esp_sleep_get_wakeup_cause();
